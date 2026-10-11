@@ -98,3 +98,73 @@ function containsBadWords(text){const words=["fuck","fucking","shit","bitch","ba
 load();document.body.dataset.theme=state.theme||"emerald";translate();renderProfile();renderFeed();renderRequests();renderSaved();
 </script>
 </body></html>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBMjnU9bzLKDfNmMOiH0pg39e4V5_W_5jA",
+    authDomain: "ameenapp-976b3.firebaseapp.com",
+    projectId: "ameenapp-976b3",
+    storageBucket: "ameenapp-976b3.firebasestorage.app",
+    messagingSenderId: "22781399454",
+    appId: "1:22781399454:web:4b0badf87a50881198c68f",
+    measurementId: "G-2J9STPVHWC"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Zorg dat verzonden berichten direct naar Firestore gaan
+  const postForm = document.getElementById("postForm");
+  if (postForm) {
+    postForm.addEventListener("submit", async () => {
+      const text = document.getElementById("postText").value.trim();
+      const type = document.getElementById("postType").value;
+      const category = document.getElementById("category").value;
+      const isAnon = document.getElementById("postPrivacy").value === "anon";
+
+      if (text.length >= 3) {
+        try {
+          await addDoc(collection(db, "duas"), {
+            text: text,
+            type: type,
+            category: category,
+            owner: isAnon ? "Anoniem" : (state.profile?.username || "Anoniem"),
+            avatar: isAnon ? "☾" : (state.profile?.avatar || "☾"),
+            created: Date.now(),
+            ameen: 0
+          });
+          console.log("Opgeslagen in Firestore!");
+        } catch (err) {
+          console.error("Fout bij opslaan: ", err);
+        }
+      }
+    });
+  }
+
+  // Luister live naar alle inkomende berichten op alle iPads
+  onSnapshot(collection(db, "duas"), (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      if (change.type === "added") {
+        const data = change.doc.data();
+        const exists = state.posts.some(p => p.id === change.doc.id || (p.text === data.text && Math.abs(p.created - data.created) < 2000));
+        
+        if (!exists) {
+          state.posts.unshift({
+            id: change.doc.id,
+            text: data.text,
+            type: data.type || "post",
+            category: data.category || "General",
+            owner: data.owner || "Anoniem",
+            avatar: data.avatar || "☾",
+            created: data.created || Date.now(),
+            ameen: data.ameen || 0
+          });
+          if (typeof renderFeed === 'function') renderFeed();
+          if (typeof renderRequests === 'function') renderRequests();
+        }
+      }
+    });
+  });
+</script>
